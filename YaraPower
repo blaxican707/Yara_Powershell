@@ -1,0 +1,27 @@
+import-module activedirectory
+
+get-adcomputer -filter * -searchbase "ou=<TARGET_OU>,DC=<TARGET_DC>,DC=<TOP_LEVEL_DOMAIN>" | select-object name > C:\test\computerlist.txt
+
+$computers = get-content "C:\test\computerlist.txt"
+
+credential <domain\administrator>
+
+foreach ($computer in $computers)
+{
+
+#test-path \\$computer\test
+#test-path "C:\test"
+
+copy-item -path C:\test\* -destination \\$computer\test -recurse
+
+invoke-command -scriptblock {c:\test\yara64.exe c:\test\yara_rule.txt c:\<TARGETED_FILE_DIRECTORY>} -computername (get-adcomputer -filter * -
+
+searchbase "ou=<TARGET_OU>,DC=<TARGET_DC>,DC=<TOP_LEVEL_DOMAIN>" | select-object -expand name) | export-csv <YOUR_NAMED_IOC_COMPUTER_LIST>.csv
+
+}
+
+foreach ($computer in $computers)
+{
+get-childitem -path \\$computer\test\* -recurse | remove-item -force -recurse
+remove-item \\$computer\test\*
+}
