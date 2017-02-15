@@ -1,27 +1,48 @@
+#Imports the AD Module to query computer objects from
 import-module activedirectory
 
+
+#queries AD target OU and captures computers and generate computer list
 get-adcomputer -filter * -searchbase "ou=<TARGET_OU>,DC=<TARGET_DC>,DC=<TOP_LEVEL_DOMAIN>" | select-object name > C:\test\computerlist.txt
 
+
+#declare variable $computers from cmdlet gc from the computerlist that was generated previously
 $computers = get-content "C:\test\computerlist.txt"
 
+
+#prompt user to enter creds to run on remote computers
 credential <domain\administrator>
 
+
+#body of script which loops through the list of computers generated earlier
 foreach ($computer in $computers)
 {
+<#
+test-path used to debug if path exists... only used if there is an issue with pulling from server
+test-path \\$computer\test
+test-path "C:\test"
+#>
 
-#test-path \\$computer\test
-#test-path "C:\test"
 
+#copies all the contents on server hosting yara.exe, yara_rule and test file (if there is one) to remote computer
 copy-item -path C:\test\* -destination \\$computer\test -recurse
 
-invoke-command -scriptblock {c:\test\yara64.exe c:\test\yara_rule.txt c:\<TARGETED_FILE_DIRECTORY>} -computername (get-adcomputer -filter * -
-
-searchbase "ou=<TARGET_OU>,DC=<TARGET_DC>,DC=<TOP_LEVEL_DOMAIN>" | select-object -expand name) | export-csv <YOUR_NAMED_IOC_COMPUTER_LIST>.csv
-
+<#
+invoke-command installs yara objects to remote computer, executes and then generates computers that have
+the IOC's present on them. Also in the scriptblock { }, you can put whatever directory you have as long ass the yara files are present in them. Finally, Computers with IOC will be generated to the .csv file.
+#>
+invoke-command -scriptblock {c:\test\yara64.exe c:\test\yara_rule.txt c:\<TARGETED_FILE_DIRECTORY>} -computername (get-adcomputer -filter * -searchbase "ou=<TARGET_OU>,DC=<TARGET_DC>,DC=<TOP_LEVEL_DOMAIN>" | select-object -expand name) | export-csv <YOUR_NAMED_IOC_COMPUTER_LIST>.csv
 }
 
+
+
+#Yara files are then removed from those remote computers.
 foreach ($computer in $computers)
 {
-get-childitem -path \\$computer\test\* -recurse | remove-item -force -recurse
+get-childitem -path \\$computer\test\* -recurse remove-item -force
 remove-item \\$computer\test\*
 }
+
+<#
+IMPORTANT!!! Note - that the PS1 script may echo red error message stating "The term C:\test\yara.exe" is not recognized as the anme of a cmdlet, function, script file or operable program". However, the script does work and it will generate an accurate "Match.csv" along with the computerlist.txt file. This error is intermitant and it does not disrupt or degrade the mission of the script
+#>
